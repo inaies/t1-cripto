@@ -27,8 +27,12 @@ Crie um arquivo de texto para teste, por exemplo, teste.txt, no mesmo diretório
 ## 3.2. Execução (Comparação)
 Execute o script duas vezes, uma para cada modo de criptografia:
 
-### A. Testar
+### A. Testar a Cifra de Produto (Substituição + Transposição)
 ```bash
 python3 crypt.py teste.txt cripto
 ```
 
+### B. Testar a Cifra AES
+```bash
+python3 playfair.py teste.txt AES
+```
