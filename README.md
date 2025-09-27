@@ -29,6 +29,6 @@ Execute o script duas vezes, uma para cada modo de criptografia:
 
 ### A. Testar
 ```bash
-pip install cryptography
+python3 crypt.py teste.txt cripto
 ```
 
