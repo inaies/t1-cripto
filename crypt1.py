@@ -9,7 +9,7 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
 # --- CONFIGURAÇÃO DE CHAVES GLOBAIS ---
-# as chaves de AES são fixas para garantir testes nas msm condiçoes
+# as chaves de AES são fixas para garantir testes nas mesmas condiçoes
 
 AES_KEY = b"0123456789abcdefghijklmnopqrstuv" # 256-bit key (use 16 for AES-128, 24 for AES-192)
 
@@ -57,14 +57,6 @@ def prepare_playfair_text(text):
             digraphs.append(a + b)
             i += 2
     return digraphs
-
-def find_coords(matrix, char):
-    """Encontra as coordenadas (linha, coluna) de uma letra na matriz."""
-    for r in range(5):
-        for c in range(5):
-            if matrix[r][c] == char:
-                return r, c
-    return -1, -1
 
 def build_coord_map(matrix):
     """Cria dicionário {char: (row, col)} para lookup rápido"""
@@ -139,29 +131,28 @@ def rail_fence_encrypt(text, rails):
 def rail_fence_encrypt_reverse(text, rails):
     fence = [[] for _ in range(rails)]
     rail = 0
-    direction = 1  # 1 = going down, -1 = going up
+    direction = 1  # 1 para baixo, -1 para cima
 
-    # Fill the fence zigzag style
     for char in text:
         fence[rail].append(char)
         rail += direction
         if rail == 0 or rail == rails - 1:
             direction *= -1
 
-    # Read each rail backwards (finish → start)
+    # Junta os trilhos lendo de trás pra frente
     return ''.join(''.join(reversed(row)) for row in fence)
 
 def rail_fence_decrypt(ciphertext, rails):
     """Decifra o texto usando a transposição Rail Fence de forma inversa."""
     if rails == 1 or len(ciphertext) <= rails: return ciphertext
 
-    # 1. Cria a cerca vazia e o mapa de posições
+    # 1. cria a cerca vazia e o mapa de posições
     fence = [['\n'] * len(ciphertext) for _ in range(rails)]
     
-    # 2. Mapeia a trajetória do zig-zag no grid
+    # 2. mapeia a trajetória do zig-zag no grid
     row, col = 0, 0
     direction = 1
-    for _ in range(len(ciphertext)):
+    for _ in range(len(ciphertext)):    
         fence[row][col] = '*' # Marcador de posição
         col += 1
         row += direction
@@ -169,7 +160,7 @@ def rail_fence_decrypt(ciphertext, rails):
         if row == rails - 1 or row == 0:
             direction = -direction
 
-    # 3. Preenche a cerca com o texto cifrado (lendo linha por linha)
+    # 3. preenche a cerca com o texto cifrado (lendo linha por linha)
     index = 0
     for r in range(rails):
         for c in range(len(ciphertext)):
@@ -177,7 +168,7 @@ def rail_fence_decrypt(ciphertext, rails):
                 fence[r][c] = ciphertext[index]
                 index += 1
 
-    # 4. Lê o texto decifrado seguindo o mesmo caminho do zig-zag
+    # 4. lê o texto decifrado seguindo o mesmo caminho do zig-zag
     decrypted_text = []
     row, col = 0, 0
     direction = 1
@@ -193,14 +184,14 @@ def rail_fence_decrypt(ciphertext, rails):
     return "".join(decrypted_text)
 
 def rail_fence_decrypt_reverse(cipher, rails):
-    # 1) recriar o padrão zig-zag (mesma lógica da Rail Fence normal)
+    # 1. recriar o padrão zig-zag (mesma lógica da Rail Fence normal)
     pattern = list(range(rails)) + list(range(rails - 2, 0, -1))
     zigzag = [pattern[i % len(pattern)] for i in range(len(cipher))]
 
-    # 2) contar quantos caracteres caem em cada trilho
+    # 2. contar quantos caracteres caem em cada trilho
     counts = [zigzag.count(r) for r in range(rails)]
 
-    # 3) fatiar o texto cifrado em pedaços (um para cada trilho)
+    # 3. fatiar o texto cifrado em pedaços (um para cada trilho)
     pos = 0
     rails_content = []
     for count in counts:
@@ -210,7 +201,7 @@ def rail_fence_decrypt_reverse(cipher, rails):
         rails_content.append(list(reversed(part)))
         pos += count
 
-    # 4) reconstruir o texto original seguindo o caminho zig-zag
+    # 4. reconstruir o texto original seguindo o caminho zig-zag
     result = []
     rail_indices = [0] * rails
     for r in zigzag:
@@ -231,7 +222,7 @@ args = parser.parse_args()
 print(f"\n--- INÍCIO DA EXECUÇÃO ({args.crypto_type}) ---")
 
 try:
-    # Ler o conteúdo do arquivo
+    # ler o conteúdo do arquivo
     with open(args.filepath, 'rb') as file:
         plaintext_bytes = file.read()
 except FileNotFoundError:
@@ -312,7 +303,7 @@ elif args.crypto_type == "cripto":
     prepared_digraphs = prepare_playfair_text(plaintext_str)
     first_playfair_ciphertext = playfair_encrypt(prepared_digraphs, coord_map, matrix)
 
-    # 1.2 Second playfair with key being encrypted with railfence
+    # 1.2 Segunda execução da playfair utilizando senha encriptada pela rail fence
     playfair_key_railfence = rail_fence_encrypt(playfair_key, RAIL_FENCE_RAILS)
     matrix = create_key_matrix(playfair_key_railfence)
     coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
@@ -344,7 +335,7 @@ elif args.crypto_type == "cripto":
     first_rail_fence_decrypted = rail_fence_decrypt_reverse(final_ciphertext_str, RAIL_FENCE_RAILS)
     rail_fence_decrypted = rail_fence_decrypt(first_rail_fence_decrypted, RAIL_FENCE_RAILS) # Texto cifrado intermediário recuperado
 
-    # 2. PLAYFAIR: Inverso (Recupera o texto plano e remove padding 'X's)
+    # 2. PLAYFAIR: Decifra com a chave encriptada com rail fence (Recupera o texto plano e remove padding 'X's)
     decrypted_first_playfair = playfair_decrypt(rail_fence_decrypted, coord_map, matrix)
     # Decifra novamente com a chave original do Playfair
     matrix = create_key_matrix(PLAYFAIR_KEY)

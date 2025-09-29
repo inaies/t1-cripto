@@ -5,7 +5,7 @@ Este projeto implementa e compara o desempenho de duas técnicas de criptografia
 - **AES-256 (CBC)**: algoritmo moderno, padrão internacional, extremamente seguro e otimizado.
 - **Cifra de Produto (Playfair + Rail Fence)**: uma combinação de duas cifras clássicas (substituição + transposição), criada com objetivo didático para demonstrar conceitos fundamentais de criptografia.
 
-# 💡 Ideia da Cifra
+# Ideia da Cifra
 
 A proposta foi **combinar duas técnicas clássicas** de criptografia em camadas para aumentar a complexidade:
 
@@ -14,16 +14,22 @@ A proposta foi **combinar duas técnicas clássicas** de criptografia em camadas
    - O texto é dividido em pares de letras (**dígrafos**).  
    - Se as letras forem iguais, insere-se um `X` no meio.  
    - Uma matriz **5x5** é gerada a partir da palavra-chave `"MONARQUIA"`.  
-   - Cada dígrafo é substituído de acordo com as regras da cifra de Playfair (mesma linha, mesma coluna ou retângulo).  
+   - Cada dígrafo é substituído de acordo com as regras da cifra de Playfair (mesma linha, mesma coluna ou retângulo).
+   - A mesma coisa é feita novamente usando como chave a palavra `"MONARQUIA"` criptografada com rail fence sobre o texto resultante da primeira execução da playfair.
 
    Exemplo de matriz 5x5 com a chave `"MONARQUIA"`:
 
 2. **Rail Fence Cipher (Transposição em zig-zag)**  
-- O texto resultante do Playfair é escrito em um padrão de "zig-zag" sobre **4 trilhos**.  
-- A leitura é feita trilho a trilho, alterando a ordem original dos caracteres.  
+   - O texto resultante do Playfair é escrito em um padrão de "zig-zag" sobre **4 trilhos**.  
+   - A leitura é feita trilho a trilho, alterando a ordem original dos caracteres. 
+   - Então, a mesma coisa é feita novamente sobre o texto resultante da primeira execução, entretanto, fazendo a leitura trilho a trilho do final para o começo.
 
 No final, temos uma **cifra de produto**:  
-👉 **Substituição (Playfair) + Transposição (Rail Fence)**.  
+ **2x Substituição (Playfair)  + 2x Transposição (Rail Fence)**. 
+
+# Otimização
+
+Para otimizar o processo de criptografia e decriptografia, na execução da cifra de Playfair foi utilizado a estrutura de dados dicionário para facilitar a busca da substituição correspondente na matriz. Ao invés de percorrer a matriz a cada substituição a ser realizada na criptografia, o código apenas verifica a letra correspondente no dicionário pré-construído na função build_coord_map(), que mapeia cada caractere da matriz ao valor da sua linha e coluna.
 
 # Pré-requisitos
 
