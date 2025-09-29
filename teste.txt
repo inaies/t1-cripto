@@ -1,4 +1,4 @@
-Esta é uma mensagem de teste com acentos, como á, é, ç, e í.
-Vamos repetir essa frase várias vezes para criar um arquivo grande.
-Esta é uma mensagem de teste com acentos, como á, é, ç, e í.
-[Repita esta linha mais algumas dezenas de vezes...]
+ABC
+
+DE
+FG

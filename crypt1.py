@@ -94,6 +94,12 @@ def playfair_decrypt(ciphertext, coord_map, matrix):
     i = 0
     while i < len(ciphertext):
         a = ciphertext[i]
+        
+        # Verifica se ha um segundo caractere para evitar IndexError
+        # Se for o último caractere, ele deve ser ignorado ou tratado como padding.
+        if i + 1 >= len(ciphertext):
+            break 
+            
         b = ciphertext[i + 1]
         r1, c1 = coord_map[a]
         r2, c2 = coord_map[b]
