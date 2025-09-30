@@ -69,3 +69,14 @@ python3 crypt.py teste.txt cripto
 ```bash
 python3 playfair.py teste.txt AES
 ```
+
+# Gráficos Comparativos
+
+## Comparativo na Criptografia
+![Criptografia](https://github.com/inaies/t1-cripto/blob/main/encrypt_ms.png)
+
+## Comparativo na Descriptografia
+![Descriptografia](https://github.com/inaies/t1-cripto/blob/main/decrypt_ms.png)
+
+
+
