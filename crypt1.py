@@ -38,7 +38,7 @@ def create_key_matrix(key):
 
     # Monta a matriz final com a lista
     matrix = []
-    for i in range(0, 25, 5):  # Aq matriz 5x5
+    for i in range(0, 25, 5):  # matriz 5x5
         row = key_letters[i:i+5]  # pega 5 letras de cada vez
         matrix.append(row)        # adiciona como uma linha da matriz
     return matrix
@@ -228,7 +228,7 @@ def rail_fence_decrypt_reverse(cipher, rails):
     rails_content = []
     for count in counts:
         part = list(cipher[pos:pos + count])
-        # 🔑 como a cifra foi salva invertendo cada trilho,
+        # como a cifra foi salva invertendo cada trilho,
         # precisamos inverter de novo para restaurar
         rails_content.append(list(reversed(part)))
         pos += count
@@ -242,7 +242,7 @@ def rail_fence_decrypt_reverse(cipher, rails):
 
     return ''.join(result)
 
-# --- MAIN EXECUTION ---
+# --- EXECUÇÃO PRINCIPAL ---
 
 parser = argparse.ArgumentParser(description="Cifra e decifra arquivos usando AES ou uma Cifra de Produto (Playfair + Rail Fence) e mede a performance.")
 parser.add_argument("filepath", help="Caminho para o arquivo a ser processado")
@@ -366,7 +366,6 @@ elif args.crypto_type == "cripto":
     decrypted_text_raw = playfair_decrypt_dual(
         rail_fence_decrypted, matrix1, coord_map1, matrix2, coord_map2
     )
-
 
     # A saída do Playfair ainda está em maiúsculas e sem pontuação.
     # Salvamos o resultado como bytes codificados em UTF-8.

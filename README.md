@@ -9,15 +9,15 @@ Este projeto implementa e compara o desempenho de duas técnicas de criptografia
 
 A proposta foi **combinar duas técnicas clássicas** de criptografia em camadas para aumentar a complexidade:
 
-1. **Playfair Cipher (Substituição por dígrafos)**  
+1. **Playfair Cipher de Dois quadrados (Substituição por dígrafos)**  
    - O texto é normalizado (sem acentos/pontuação, apenas letras maiúsculas A–Z, com `J` convertido em `I`).  
-   - O texto é dividido em pares de letras (**dígrafos**).  
+   - O texto é dividido em pares de letras.  
    - Se as letras forem iguais, insere-se um `X` no meio.  
-   - Uma matriz **5x5** é gerada a partir da palavra-chave `"MONARQUIA"`.  
-   - Cada dígrafo é substituído de acordo com as regras da cifra de Playfair (mesma linha, mesma coluna ou retângulo).
-   - A mesma coisa é feita novamente usando como chave a palavra `"MONARQUIA"` criptografada com rail fence sobre o texto resultante da primeira execução da playfair.
-
-   Exemplo de matriz 5x5 com a chave `"MONARQUIA"`:
+   - Duas matrizes **5x5** são geradas a partir de duas palavras chaves:
+      - No nosso caso, a primeira chave é "JULIOCEZAR".
+      - A segunda matriz utiliza a mesma chave, entretanto criptografada com railfance de 4 trilhos.
+   - Os pares de caracteres de índice par são associados a primeira matriz, que utiliza a chave original "JULIOCEZAR", enquanto os pares de caracteres de indíce ímpar utilizam a segunda matriz, com a chave criptografada. Assim, a substituição dos pares é feita de acordo com as correspondências de cada matriz.
+   - Cada par de caracteres é substituído de acordo com as regras da cifra de Playfair (mesma linha, mesma coluna ou retângulo).
 
 2. **Rail Fence Cipher (Transposição em zig-zag)**  
    - O texto resultante do Playfair é escrito em um padrão de "zig-zag" sobre **4 trilhos**.  
