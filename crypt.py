@@ -9,126 +9,137 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import padding
 
 # --- CONFIGURAÇÃO DE CHAVES GLOBAIS ---
-# as chaves de AES são fixas para garantir testes nas msm condiçoes
+# as chaves de AES são fixas para garantir testes nas mesmas condiçoes
 
 AES_KEY = b"0123456789abcdefghijklmnopqrstuv" # 256-bit key (use 16 for AES-128, 24 for AES-192)
 
 AES_IV = b"1234567890abcdef"   # 128-bit IV for AES
 
 # Chaves Playfair e Rail Fence
-PLAYFAIR_KEY = "MONARQUIA"  # Uma key para a matriz 5x5 max 25
-RAIL_FENCE_RAILS = 4       # O numero de trilhos para o zig-zag da Rail Fence
+PLAYFAIR_KEY1 = "JULIOCEZAR"
+RAIL_FENCE_RAILS = 4
 
 # --- FUNÇÕES AUXILIARES DA CIFRA DE PLAYFAIR ---
 
+# Cria a matriz 5x5 do Playfair com a key
 def create_key_matrix(key):
-    """Cria a matriz 5x5 do Playfair a partir da key """
     key = key.upper().replace('J', 'I')
-    # Remove duplicatas e caracteres não-alfabéticos
     key_letters = []
     for char in key:
         if 'A' <= char <= 'Z' and char not in key_letters:
             key_letters.append(char)
 
-    alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ" # J é omitido
+    alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ"  # J é omitido
+
+    # Preparando a lista para popular a matriz no fim
     for char in alphabet:
         if char not in key_letters:
             key_letters.append(char)
 
+    # Monta a matriz final com a lista
     matrix = []
-    for i in range(0, 25, 5):
-        matrix.append(key_letters[i:i+5])
+    for i in range(0, 25, 5):  # matriz 5x5
+        row = key_letters[i:i+5]  # pega 5 letras de cada vez
+        matrix.append(row)        # adiciona como uma linha da matriz
     return matrix
 
+# Prepara e trata o texto para a Playfair
 def prepare_playfair_text(text):
-    """
-    Prepara o texto: 
-    1. Normaliza para remover acentos (mantendo apenas A-Z).
-    2. Remove pontuação e converte J para I.
-    3. Cria dígrafos, adicionando 'X' como padding quando necessário.
-    """
-    # 1. Normalização para lidar com acentos (ex: 'á' -> 'a')
-    normalized_text = unicodedata.normalize("NFKD", text).encode('ascii', 'ignore').decode('ascii')
+    normalized_text = (unicodedata.normalize("NFKD", text) # tira os acentos
+                        .encode('ascii', 'ignore')         # tira sinais fora do ascii
+                        .decode('ascii'))                  # volta pra string
     
-    # 2. Normalização (Maiúsculas, J -> I, remover não-alfabéticos)
+    # monta a string maiuscula com strings de A a Z e substituindo o J por I
     prepared = "".join(filter(str.isalpha, normalized_text.upper().replace('J', 'I')))
-
-    # 3. Criação dos Dígrafos (Adiciona 'X' entre letras duplicadas ou no final ímpar)
-    digraphs = []
+ 
+    pair = []
     i = 0
     while i < len(prepared):
         a = prepared[i]
+        # caso seja a ultima letra sem um par
         if i + 1 >= len(prepared):
-            # Última letra sozinha, adiciona 'X'
-            digraphs.append(a + 'X')
+            pair.append(a + 'X')
             break
-        b = prepared[i+1]
-        
+        b = prepared[i + 1]
+        # letras iguais em sequencia
         if a == b:
-            # Letras duplicadas, adiciona 'X' e avança apenas uma posição
-            digraphs.append(a + 'X')
+            pair.append(a + 'X')
             i += 1
         else:
-            # Dígrafo normal
-            digraphs.append(a + b)
+            pair.append(a + b)
             i += 2
-    return digraphs
+    return pair
 
-def find_coords(matrix, char):
-    """Encontra as coordenadas (linha, coluna) de uma letra na matriz."""
-    for r in range(5):
-        for c in range(5):
-            if matrix[r][c] == char:
-                return r, c
-    return -1, -1
+# Cria dicionario com cada letra tendo sua linha e coluna -> {char: (row, col)}
+# tira o custo de ficar percorrendo a matriz
+def build_coord_map(matrix):
+    coord_map = {}
+    
+    for row in range(5):
+        for col in range(5):
+            char = matrix[row][col]
+            coord_map[char] = (row, col)
+    
+    return coord_map
 
-def playfair_encrypt(prepared_digraphs, matrix):
-    """Cifra o texto usando a regra de Playfair."""
-    ciphertext = ""
-    for a, b in prepared_digraphs:
-        r1, c1 = find_coords(matrix, a)
-        r2, c2 = find_coords(matrix, b)
+# Faz a cifra usando as duas matrizes, se a dupla tiver indice par vai para matriz1 e impar matriz2
+def playfair_encrypt_dual(pair, matrix1, coord_map1, matrix2, coord_map2):
+    result = []
 
-        if r1 == r2: # Mesma linha (regra 1)
-            new_a = matrix[r1][(c1 + 1) % 5]
-            new_b = matrix[r2][(c2 + 1) % 5]
-        elif c1 == c2: # Mesma coluna (regra 2)
-            new_a = matrix[(r1 + 1) % 5][c1]
-            new_b = matrix[(r2 + 1) % 5][c2]
-        else: # Retângulo (regra 3)
-            new_a = matrix[r1][c2]
-            new_b = matrix[r2][c1]
-        
-        ciphertext += new_a + new_b
-    return ciphertext
+    # Percorre os pares com indice i. (a, b) as duas letras do par
+    for i, (a, b) in enumerate(pair):
+        if i % 2 == 0:  # pares de indice par usam a matriz 1
+            r1, c1 = coord_map1[a]  # consulta o dicionario para cada char
+            r2, c2 = coord_map1[b]
+            matrix = matrix1
+        else:           # pares de indice impar usam a matriz 2
+            r1, c1 = coord_map2[a]
+            r2, c2 = coord_map2[b]
+            matrix = matrix2
 
-def playfair_decrypt(ciphertext, matrix):
-    """Decifra o texto usando a regra de Playfair de forma inversa."""
-    decrypted_text = ""
+        if r1 == r2:  # duas letras do mesmo par na mesma linha
+            result.append(matrix[r1][(c1 + 1) % 5])
+            result.append(matrix[r2][(c2 + 1) % 5])
+        elif c1 == c2: # duas letras do mesmo par na mesma coluna
+            result.append(matrix[(r1 + 1) % 5][c1])
+            result.append(matrix[(r2 + 1) % 5][c2])
+        else:   # Monta o retangulo corretamente na matriz
+            result.append(matrix[r1][c2])
+            result.append(matrix[r2][c1])
+    return "".join(result)
+
+# decifra os com indice par pela matriz1 e indice impar matriz2
+def playfair_decrypt_dual(ciphertext, matrix1, coord_map1, matrix2, coord_map2):
+    result = []
     i = 0
-    while i < len(ciphertext):
+    pair_index = 0
+    while i < len(ciphertext) - 1:
         a = ciphertext[i]
         b = ciphertext[i+1]
-        
-        r1, c1 = find_coords(matrix, a)
-        r2, c2 = find_coords(matrix, b)
 
-        if r1 == r2: # Mesma linha (regra 1)
-            new_a = matrix[r1][(c1 - 1) % 5]
-            new_b = matrix[r2][(c2 - 1) % 5]
-        elif c1 == c2: # Mesma coluna (regra 2)
-            new_a = matrix[(r1 - 1) % 5][c1]
-            new_b = matrix[(r2 - 1) % 5][c2]
-        else: # Retângulo (regra 3)
-            new_a = matrix[r1][c2]
-            new_b = matrix[r2][c1]
-        
-        decrypted_text += new_a + new_b
-        i += 2
+        if pair_index % 2 == 0:  # usa chave 1
+            r1, c1 = coord_map1[a]
+            r2, c2 = coord_map1[b]
+            matrix = matrix1
+        else:                       # usa chave 2
+            r1, c1 = coord_map2[a]
+            r2, c2 = coord_map2[b]
+            matrix = matrix2
 
-    # Remove o X extra que foi adicionado na fase de preparação.
-    # IMPORTANTE: Só remove X de padding.
-    return decrypted_text.replace('X', '')
+        if r1 == r2:
+            result.append(matrix[r1][(c1 - 1) % 5]) # %5 para voltar para o inicio da linha
+            result.append(matrix[r2][(c2 - 1) % 5])
+        elif c1 == c2:
+            result.append(matrix[(r1 - 1) % 5][c1]) # %5 para voltar para o inicio da coluna
+            result.append(matrix[(r2 - 1) % 5][c2])
+        else:
+            result.append(matrix[r1][c2])
+            result.append(matrix[r2][c1])
+
+        i += 2   
+        pair_index += 1
+
+    return "".join(result).replace("X", "")
 
 # ------------- CIFRA DE RAIL FENCE (TRANSPOSIÇÃO) ------------------
 
@@ -150,17 +161,30 @@ def rail_fence_encrypt(text, rails):
     # Junta os trilhos
     return "".join("".join(rail) for rail in fence)
 
+def rail_fence_encrypt_reverse(text, rails):
+    fence = [[] for _ in range(rails)]
+    rail = 0
+    direction = 1  # 1 para baixo, -1 para cima
+
+    for char in text:
+        fence[rail].append(char)
+        rail += direction
+        if rail == 0 or rail == rails - 1:
+            direction *= -1
+
+    # Junta os trilhos lendo de trás pra frente
+    return ''.join(''.join(reversed(row)) for row in fence)
+# Decifra o texto usando a transposição Rail Fence de forma inversa
 def rail_fence_decrypt(ciphertext, rails):
-    """Decifra o texto usando a transposição Rail Fence de forma inversa."""
     if rails == 1 or len(ciphertext) <= rails: return ciphertext
 
-    # 1. Cria a cerca vazia e o mapa de posições
+    # cria a cerca vazia e o mapa de posições
     fence = [['\n'] * len(ciphertext) for _ in range(rails)]
     
-    # 2. Mapeia a trajetória do zig-zag no grid
+    # mapeia a trajetoria do zigzag no grid
     row, col = 0, 0
     direction = 1
-    for _ in range(len(ciphertext)):
+    for _ in range(len(ciphertext)):    
         fence[row][col] = '*' # Marcador de posição
         col += 1
         row += direction
@@ -168,7 +192,7 @@ def rail_fence_decrypt(ciphertext, rails):
         if row == rails - 1 or row == 0:
             direction = -direction
 
-    # 3. Preenche a cerca com o texto cifrado (lendo linha por linha)
+    # preenche a cerca com o texto cifrado (lendo linha por linha)
     index = 0
     for r in range(rails):
         for c in range(len(ciphertext)):
@@ -176,7 +200,7 @@ def rail_fence_decrypt(ciphertext, rails):
                 fence[r][c] = ciphertext[index]
                 index += 1
 
-    # 4. Lê o texto decifrado seguindo o mesmo caminho do zig-zag
+    # le o texto decifrado seguindo o mesmo caminho do zigzag
     decrypted_text = []
     row, col = 0, 0
     direction = 1
@@ -191,8 +215,34 @@ def rail_fence_decrypt(ciphertext, rails):
             
     return "".join(decrypted_text)
 
+def rail_fence_decrypt_reverse(cipher, rails):
+    # 1. recriar o padrão zig-zag (mesma lógica da Rail Fence normal)
+    pattern = list(range(rails)) + list(range(rails - 2, 0, -1))
+    zigzag = [pattern[i % len(pattern)] for i in range(len(cipher))]
 
-# --- MAIN EXECUTION ---
+    # 2. contar quantos caracteres caem em cada trilho
+    counts = [zigzag.count(r) for r in range(rails)]
+
+    # 3. fatiar o texto cifrado em pedaços (um para cada trilho)
+    pos = 0
+    rails_content = []
+    for count in counts:
+        part = list(cipher[pos:pos + count])
+        # como a cifra foi salva invertendo cada trilho,
+        # precisamos inverter de novo para restaurar
+        rails_content.append(list(reversed(part)))
+        pos += count
+
+    # 4. reconstruir o texto original seguindo o caminho zig-zag
+    result = []
+    rail_indices = [0] * rails
+    for r in zigzag:
+        result.append(rails_content[r][rail_indices[r]])
+        rail_indices[r] += 1
+
+    return ''.join(result)
+
+# --- EXECUÇÃO PRINCIPAL ---
 
 parser = argparse.ArgumentParser(description="Cifra e decifra arquivos usando AES ou uma Cifra de Produto (Playfair + Rail Fence) e mede a performance.")
 parser.add_argument("filepath", help="Caminho para o arquivo a ser processado")
@@ -203,7 +253,7 @@ args = parser.parse_args()
 print(f"\n--- INÍCIO DA EXECUÇÃO ({args.crypto_type}) ---")
 
 try:
-    # Ler o conteúdo do arquivo
+    # ler o conteúdo do arquivo
     with open(args.filepath, 'rb') as file:
         plaintext_bytes = file.read()
 except FileNotFoundError:
@@ -211,9 +261,7 @@ except FileNotFoundError:
     sys.exit(1)
 
 
-# ====================================================================
-#                          SEÇÃO AES
-# ====================================================================
+#----------------------------------------------- SEÇÃO AES ---------------------------------------------------------
 
 if args.crypto_type == "AES":
     print("Modo: AES-256 (CBC) | Chave: FIXA (32 bytes) | IV: FIXO (16 bytes)")
@@ -241,7 +289,7 @@ if args.crypto_type == "AES":
     print(f"ENCRYPT: Tempo: {encryption_time:.6f} segundos")
     print("ENCRYPT: Arquivo cifrado salvo em 'encrypted_aes.bin'")
 
-    # --- Decifrar (Decrypt) ---
+    # --------------------------------- Decifrar (Decrypt) -----------------------------------------------
     start_time = time.time()
     
     # Decodificar de Base64 e bytes
@@ -268,7 +316,7 @@ if args.crypto_type == "AES":
 #     CIFRA DE PRODUTO --- Mistura das duas tecnicas
 
 elif args.crypto_type == "cripto":
-    print(f"Modo: Playfair (Chave: {PLAYFAIR_KEY}) + Rail Fence (Trilhos: {RAIL_FENCE_RAILS})")
+    print(f"Modo: Playfair (Chave: {PLAYFAIR_KEY1}) + Rail Fence (Trilhos: {RAIL_FENCE_RAILS})")
     
     # 1. Preparação: O Playfair requer texto, não bytes.
     # Decodifica de bytes para string (assumindo UTF-8)
@@ -277,13 +325,25 @@ elif args.crypto_type == "cripto":
     # --- Cifrar (Encrypt) ---
     start_time = time.time()
     
+    # playfair_key = PLAYFAIR_KEY
     # 1. PLAYFAIR: Substituição (limpa acentos e cria dígrafos)
-    matrix = create_key_matrix(PLAYFAIR_KEY)
-    prepared_digraphs = prepare_playfair_text(plaintext_str)
-    playfair_ciphertext = playfair_encrypt(prepared_digraphs, matrix) # Texto cifrado intermediário
+    matrix1 = create_key_matrix(PLAYFAIR_KEY1)
+    coord_map1 = build_coord_map(matrix1)
 
-    # 2. RAIL FENCE: Transposição (embaralha a ordem do texto)
-    final_ciphertext_str = rail_fence_encrypt(playfair_ciphertext, RAIL_FENCE_RAILS)
+    # encripta a segunda chave usada na segunda matriz da Cifra de Playfair de Dois Quadrados
+    playfair_key2 = rail_fence_encrypt(PLAYFAIR_KEY1, RAIL_FENCE_RAILS)
+    matrix2 = create_key_matrix(playfair_key2)
+    coord_map2 = build_coord_map(matrix2)
+
+    prepared_digraphs = prepare_playfair_text(plaintext_str)
+    first_playfair_ciphertext = playfair_encrypt_dual(
+        prepared_digraphs, matrix1, coord_map1, matrix2, coord_map2
+    )
+
+    # RAIL FENCE: Transposição (embaralha a ordem do texto)
+    first_rail_fence_encrypted = rail_fence_encrypt(first_playfair_ciphertext, RAIL_FENCE_RAILS)
+
+    final_ciphertext_str = rail_fence_encrypt_reverse(first_rail_fence_encrypted, RAIL_FENCE_RAILS)
 
     end_time = time.time()
     encryption_time = end_time - start_time
@@ -297,15 +357,16 @@ elif args.crypto_type == "cripto":
     print(f"ENCRYPT: Tempo: {encryption_time:.6f} segundos")
     print("ENCRYPT: Arquivo cifrado salvo em 'encrypted_cripto.bin'")
 
-    # --- Decifrar (Decrypt) ---
+    # ------------------------- Decifrar (Decrypt) --------------------------------
     start_time = time.time()
     
-    # 1. RAIL FENCE: Inverso (Primeiro a transposição, pois foi a última a cifrar)
-    rail_fence_decrypted = rail_fence_decrypt(final_ciphertext_str, RAIL_FENCE_RAILS) # Texto cifrado intermediário recuperado
+    # RAIL FENCE: Inverso (Primeiro a transposição, pois foi a última a cifrar)
+    first_rail_fence_decrypted = rail_fence_decrypt_reverse(final_ciphertext_str, RAIL_FENCE_RAILS)
+    rail_fence_decrypted = rail_fence_decrypt(first_rail_fence_decrypted, RAIL_FENCE_RAILS) # Texto cifrado intermediário recuperado
+    decrypted_text_raw = playfair_decrypt_dual(
+        rail_fence_decrypted, matrix1, coord_map1, matrix2, coord_map2
+    )
 
-    # 2. PLAYFAIR: Inverso (Recupera o texto plano e remove padding 'X's)
-    decrypted_text_raw = playfair_decrypt(rail_fence_decrypted, matrix)
-    
     # A saída do Playfair ainda está em maiúsculas e sem pontuação.
     # Salvamos o resultado como bytes codificados em UTF-8.
     decrypted_data_bytes = decrypted_text_raw.encode('utf-8')
