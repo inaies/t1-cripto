@@ -16,13 +16,14 @@ AES_KEY = b"0123456789abcdefghijklmnopqrstuv" # 256-bit key (use 16 for AES-128,
 AES_IV = b"1234567890abcdef"   # 128-bit IV for AES
 
 # Chaves Playfair e Rail Fence
-PLAYFAIR_KEY = "MONARQUIA"  # Uma key para a matriz 5x5 max 25
-RAIL_FENCE_RAILS = 4       # O numero de trilhos para o zig-zag da Rail Fence
+PLAYFAIR_KEY1 = "MONARQUIA"
+PLAYFAIR_KEY2 = "DEMOCRACIA"
+RAIL_FENCE_RAILS = 4
 
 # --- FUNÇÕES AUXILIARES DA CIFRA DE PLAYFAIR ---
 
 def create_key_matrix(key):
-    """Cria a matriz 5x5 do Playfair a partir da key """
+    """Cria a matriz 5x5 do Playfair com a key """
     key = key.upper().replace('J', 'I')
     key_letters = []
     for char in key:
@@ -38,7 +39,7 @@ def create_key_matrix(key):
     return matrix
 
 def prepare_playfair_text(text):
-    """Prepara texto para cifrar com Playfair (remove acentos, cria dígrafos)"""
+    """Prepara texto para a Playfair"""
     normalized_text = unicodedata.normalize("NFKD", text).encode('ascii', 'ignore').decode('ascii')
     prepared = "".join(filter(str.isalpha, normalized_text.upper().replace('J', 'I')))
 
@@ -210,6 +211,60 @@ def rail_fence_decrypt_reverse(cipher, rails):
 
     return ''.join(result)
 
+def playfair_encrypt_dual(digraphs, matrix1, coord_map1, matrix2, coord_map2):
+    result = []
+    for i, (a, b) in enumerate(digraphs):
+        if i % 2 == 0:  # pares de índice par usam chave 1
+            r1, c1 = coord_map1[a]
+            r2, c2 = coord_map1[b]
+            matrix = matrix1
+        else:           # pares de índice ímpar usam chave 2
+            r1, c1 = coord_map2[a]
+            r2, c2 = coord_map2[b]
+            matrix = matrix2
+
+        if r1 == r2:
+            result.append(matrix[r1][(c1 + 1) % 5])
+            result.append(matrix[r2][(c2 + 1) % 5])
+        elif c1 == c2:
+            result.append(matrix[(r1 + 1) % 5][c1])
+            result.append(matrix[(r2 + 1) % 5][c2])
+        else:
+            result.append(matrix[r1][c2])
+            result.append(matrix[r2][c1])
+    return "".join(result)
+
+def playfair_decrypt_dual(ciphertext, matrix1, coord_map1, matrix2, coord_map2):
+    result = []
+    i = 0
+    digraph_index = 0
+    while i < len(ciphertext) - 1:
+        a = ciphertext[i]
+        b = ciphertext[i+1]
+
+        if digraph_index % 2 == 0:  # usa chave 1
+            r1, c1 = coord_map1[a]
+            r2, c2 = coord_map1[b]
+            matrix = matrix1
+        else:                       # usa chave 2
+            r1, c1 = coord_map2[a]
+            r2, c2 = coord_map2[b]
+            matrix = matrix2
+
+        if r1 == r2:
+            result.append(matrix[r1][(c1 - 1) % 5])
+            result.append(matrix[r2][(c2 - 1) % 5])
+        elif c1 == c2:
+            result.append(matrix[(r1 - 1) % 5][c1])
+            result.append(matrix[(r2 - 1) % 5][c2])
+        else:
+            result.append(matrix[r1][c2])
+            result.append(matrix[r2][c1])
+
+        i += 2
+        digraph_index += 1
+
+    return "".join(result).replace("X", "")
 
 # --- MAIN EXECUTION ---
 
@@ -287,7 +342,8 @@ if args.crypto_type == "AES":
 #     CIFRA DE PRODUTO --- Mistura das duas tecnicas
 
 elif args.crypto_type == "cripto":
-    print(f"Modo: Playfair (Chave: {PLAYFAIR_KEY}) + Rail Fence (Trilhos: {RAIL_FENCE_RAILS})")
+    print(f"Modo: Playfair (Chave: {PLAYFAIR_KEY1}) + Rail Fence (Trilhos: {RAIL_FENCE_RAILS})")
+    print(f"Modo: Playfair (Chave: {PLAYFAIR_KEY2}) + Rail Fence (Trilhos: {RAIL_FENCE_RAILS})")
     
     # 1. Preparação: O Playfair requer texto, não bytes.
     # Decodifica de bytes para string (assumindo UTF-8)
@@ -296,23 +352,31 @@ elif args.crypto_type == "cripto":
     # --- Cifrar (Encrypt) ---
     start_time = time.time()
     
-    playfair_key = PLAYFAIR_KEY
+    # playfair_key = PLAYFAIR_KEY
     # 1. PLAYFAIR: Substituição (limpa acentos e cria dígrafos)
-    matrix = create_key_matrix(playfair_key)
-    coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
-    prepared_digraphs = prepare_playfair_text(plaintext_str)
-    first_playfair_ciphertext = playfair_encrypt(prepared_digraphs, coord_map, matrix)
+    matrix1 = create_key_matrix(PLAYFAIR_KEY1)
+    coord_map1 = build_coord_map(matrix1)
 
-    # 1.2 Segunda execução da playfair utilizando senha encriptada pela rail fence
-    playfair_key_railfence = rail_fence_encrypt(playfair_key, RAIL_FENCE_RAILS)
-    matrix = create_key_matrix(playfair_key_railfence)
-    coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
-    prepared_digraphs = prepare_playfair_text(first_playfair_ciphertext)
-    second_playfair_ciphertext = playfair_encrypt(prepared_digraphs, coord_map, matrix)
+    # encripta a segunda chave usada na segunda matriz da Cifra de Playfair de Dois Quadrados
+    playfair_key2 = rail_fence_encrypt(PLAYFAIR_KEY1, RAIL_FENCE_RAILS)
+    matrix2 = create_key_matrix(playfair_key2)
+    coord_map2 = build_coord_map(matrix2)
+
+    prepared_digraphs = prepare_playfair_text(plaintext_str)
+    first_playfair_ciphertext = playfair_encrypt_dual(
+        prepared_digraphs, matrix1, coord_map1, matrix2, coord_map2
+    )
+
+    # # 1.2 Segunda execução da playfair utilizando senha encriptada pela rail fence
+    # playfair_key_railfence = rail_fence_encrypt(playfair_key, RAIL_FENCE_RAILS)
+    # matrix = create_key_matrix(playfair_key_railfence)
+    # coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
+    # prepared_digraphs = prepare_playfair_text(first_playfair_ciphertext)
+    # second_playfair_ciphertext = playfair_encrypt(prepared_digraphs, coord_map, matrix)
 
 
     # 2. RAIL FENCE: Transposição (embaralha a ordem do texto)
-    first_rail_fence_encrypted = rail_fence_encrypt(second_playfair_ciphertext, RAIL_FENCE_RAILS)
+    first_rail_fence_encrypted = rail_fence_encrypt(first_playfair_ciphertext, RAIL_FENCE_RAILS)
 
     final_ciphertext_str = rail_fence_encrypt_reverse(first_rail_fence_encrypted, RAIL_FENCE_RAILS)
 
@@ -336,11 +400,14 @@ elif args.crypto_type == "cripto":
     rail_fence_decrypted = rail_fence_decrypt(first_rail_fence_decrypted, RAIL_FENCE_RAILS) # Texto cifrado intermediário recuperado
 
     # 2. PLAYFAIR: Decifra com a chave encriptada com rail fence (Recupera o texto plano e remove padding 'X's)
-    decrypted_first_playfair = playfair_decrypt(rail_fence_decrypted, coord_map, matrix)
+    # decrypted_first_playfair = playfair_decrypt(rail_fence_decrypted, coord_map, matrix)
     # Decifra novamente com a chave original do Playfair
-    matrix = create_key_matrix(PLAYFAIR_KEY)
-    coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
-    decrypted_text_raw = playfair_decrypt(decrypted_first_playfair, coord_map, matrix)
+    # matrix = create_key_matrix(PLAYFAIR_KEY)
+    # coord_map = build_coord_map(matrix)  # <-- lookup rápido O(1)
+    decrypted_text_raw = playfair_decrypt_dual(
+        rail_fence_decrypted, matrix1, coord_map1, matrix2, coord_map2
+    )
+
 
     # A saída do Playfair ainda está em maiúsculas e sem pontuação.
     # Salvamos o resultado como bytes codificados em UTF-8.
